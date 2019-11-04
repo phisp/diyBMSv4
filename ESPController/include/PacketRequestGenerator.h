@@ -3,7 +3,8 @@
 
 #include <Arduino.h>
 #include <cppQueue.h>
-#include <defines.h>
+#include "defines.h"
+#include "../lib/settings/settings.h"
 
 
 //command byte

@@ -11,7 +11,7 @@
 #include <ESPAsyncWebServer.h>
 
 #include <EEPROM.h>
-#include "settings.h"
+#include "../lib/settings/settings.h"
 
 //Where in EEPROM do we store the configuration
 #define EEPROM_WIFI_START_ADDRESS 0

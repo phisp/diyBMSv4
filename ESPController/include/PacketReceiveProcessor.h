@@ -2,9 +2,11 @@
 #define PacketReceiveProcessor_H_
 
 #include <Arduino.h>
-#include <defines.h>
+#include "defines.h"
 
-#include "crc16.h"
+#include "../lib/settings/settings.h"
+
+#include "../lib/crc16/crc16.h"
 
 class PacketReceiveProcessor {
    public:

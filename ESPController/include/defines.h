@@ -79,7 +79,7 @@ enum COMMAND: uint8_t
     // 0000 0101  = Report settings/configuration
 };
 
-//Maximum of 16 cell modules (dont change this!)
+//Maximum of 16 cell modules (4 Bit) (dont change this!) -> Improve up to 256 (8 Bit) Boards
 #define maximum_cell_modules 16
 
 //NOTE THIS MUST BE EVEN IN SIZE (BYTES) ESP8266 IS 32 BIT AND WILL ALIGN AS SUCH!

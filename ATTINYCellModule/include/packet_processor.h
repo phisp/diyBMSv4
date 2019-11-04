@@ -3,16 +3,17 @@
 
 #include <Arduino.h>
 
-#include "diybms_attiny841.h"
-#include "Steinhart.h"
+#include "diybms_attiny841.h" // <- Wird ebenfalls in main included, nicht auskommentieren, sonst findet der Kompiler es nicht mehr
+#include "../lib/Steinhart/Steinhart.h"
+//#include "../lib/Steinhart/Steinhart.cpp"
 #include "defines.h"
 
-#include "settings.h"
+#include "../lib/settings/settings.h"
 
 //Tiny and cross-device compatible CCITT CRC16 calculator library - uCRC16Lib
 //https://github.com/Naguissa/uCRC16Lib
 //#include <uCRC16Lib.h>
-#include "crc16.h"
+#include "../lib/crc16/crc16.h"
 
 #define ADC_CELL_VOLTAGE 0
 #define ADC_INTERNAL_TEMP 1

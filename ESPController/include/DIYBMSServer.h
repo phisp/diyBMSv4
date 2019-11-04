@@ -10,11 +10,11 @@
 
 #include <EEPROM.h>
 
-#include "settings.h"
-#include "ArduinoJson.h"
+#include "../lib/settings/settings.h"
+#include <ArduinoJson.h>
 #include "PacketRequestGenerator.h"
 #include "PacketReceiveProcessor.h"
-#include "ESP8266TrueRandom.h"
+#include <ESP8266TrueRandom.h>
 
 class DIYBMSServer {
    public:

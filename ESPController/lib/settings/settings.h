@@ -24,7 +24,7 @@ http://ww1.microchip.com/downloads/en/DeviceDoc/Atmel-8495-8-bit-AVR-Microcontro
 
 #include <EEPROM.h>
 
-#include "crc16.h"
+#include "../crc16/crc16.h"
 
 #define EEPROM_storageSize 1024
 
