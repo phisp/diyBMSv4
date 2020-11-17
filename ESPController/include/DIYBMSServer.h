@@ -3,18 +3,27 @@
 #define DIYBMSServer_H_
 
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
-#include <Hash.h>
+#if defined(ESP8266)
+//https://github.com/esp8266/Arduino
+#include <ESP8266WiFi.h>          
 #include <ESPAsyncTCP.h>
+#else
+#include <WiFi.h>
+#include <AsyncTCP.h>
+#endif
+
 #include <ESPAsyncWebServer.h>
 
 #include <EEPROM.h>
 
 #include "../lib/settings/settings.h"
-#include <ArduinoJson.h>
+#include "ArduinoJson.h"
 #include "PacketRequestGenerator.h"
 #include "PacketReceiveProcessor.h"
-#include <ESP8266TrueRandom.h>
+
+#if defined(ESP8266)
+#include "ESP8266TrueRandom.h"
+#endif
 
 class DIYBMSServer {
    public:
@@ -37,6 +46,7 @@ class DIYBMSServer {
       static void settings(AsyncWebServerRequest *request);
       static void clearModuleValues(uint8_t bank, uint8_t module);
       static void resetCounters(AsyncWebServerRequest *request);
+      static void handleRestartController(AsyncWebServerRequest *request);
 
       static void saveSetting(AsyncWebServerRequest *request);
       static void saveInfluxDBSetting(AsyncWebServerRequest *request);
@@ -45,6 +55,8 @@ class DIYBMSServer {
       static void saveBankConfiguration(AsyncWebServerRequest *request);
       static void saveRuleConfiguration(AsyncWebServerRequest *request);
       static void saveNTP(AsyncWebServerRequest *request);
+
+      static String uuidToString(uint8_t* uuidLocation);
 };
 
 //TODO: Mixing of classes, static and extern is not great
@@ -54,4 +66,5 @@ extern diybms_eeprom_settings mysettings;
 extern uint16_t ConfigHasChanged;
 extern bool rule_outcome[RELAY_RULES];
 extern bool PCF8574Enabled;
+extern ControllerState ControlState;
 #endif

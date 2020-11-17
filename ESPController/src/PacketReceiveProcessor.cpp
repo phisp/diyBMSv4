@@ -1,38 +1,57 @@
-#include "PacketReceiveProcessor.h"
+#include "../include/PacketReceiveProcessor.h"
+
+
+
+bool PacketReceiveProcessor::HasCommsTimedOut() {
+  //We timeout the comms if we dont receive a packet within 5 times the normal
+  //round trip time of the packets through the modules (minimum of 5 seconds to cater for low numbers of modules)
+  uint32_t millisecondSinceLastPacket=millis()-packetLastReceivedMillisecond;
+  return ((millisecondSinceLastPacket> 5*packetTimerMillisecond) && (millisecondSinceLastPacket > 5000));
+}
 
 bool PacketReceiveProcessor::ProcessReply(const uint8_t* receivebuffer,
                                           uint16_t sequenceToExpect) {
 
-  // Copy to our buffer
+
+  packetsReceived++;
+
+  // Copy to our buffer (probably dont need to do this)
   memcpy(&_packetbuffer, receivebuffer, sizeof(_packetbuffer));
 
   // Calculate the CRC and compare to received
   uint16_t validateCRC = CRC16::CalculateArray((uint8_t*)&_packetbuffer, sizeof(_packetbuffer) - 2);
 
   if (validateCRC == _packetbuffer.crc) {
-    if (_packetbuffer.sequence == sequenceToExpect) {
+      //Its a valid packet...
+      packetLastReceivedMillisecond=millis();
 
       if (ReplyWasProcessedByAModule()) {
         switch (ReplyForCommand()) {
           case COMMAND::SetBankIdentity:
             break;  // Ignore reply
           case COMMAND::ReadVoltageAndStatus:
+            if (packetLastSentSequence==_packetbuffer.sequence) {
+              //Record the number of milliseconds taken for this packet to go through the modules
+              //we use this to later check for unusually large timeouts (indication of fault)
+              packetTimerMillisecond=millis()-packetLastSentMillisecond;
+            }
             ProcessReplyVoltage();
             break;
+          case COMMAND::ReadBadPacketCounter:
+            ProcessReplyBadPacketCount();
+          break;
           case COMMAND::Identify:
             break;  // Ignore reply
           case COMMAND::ReadTemperature:
             ProcessReplyTemperature();
             break;
-          case COMMAND::ReadBadPacketCounter:
-            break;
           case COMMAND::ReadSettings:
             ProcessReplySettings();
             break;
+          case COMMAND::ReadBalancePowerPWM:
+            ProcessReplyBalancePower();
+            break;            
         }
-
-        //Clear any error counter - we have a good packet
-        commsError=0;
 
         return true;
       } else {
@@ -42,16 +61,23 @@ bool PacketReceiveProcessor::ProcessReply(const uint8_t* receivebuffer,
         //or we have just configured a module to another bank
         numberOfModules[ReplyFromBank()]=0;
       }
-    } else {
-      // Increase the error count of out of sequence packets
-      totalMissedPacketCount++;
-    }
+
   } else {
     //crc error
     totalCRCErrors++;
   }
 
+  //SERIAL_DEBUG.println("Failed ProcessReply");
   return false;
+}
+
+uint8_t PacketReceiveProcessor::ReplyLastAddress() {
+  uint8_t a=ReplyLastAddressRaw();
+  return (a==0) ? 0x10: a;
+}
+
+uint8_t PacketReceiveProcessor::ReplyLastAddressRaw() {
+  return (_packetbuffer.address & 0x0F);
 }
 
 void PacketReceiveProcessor::ProcessReplyAddressByte() {
@@ -63,6 +89,7 @@ void PacketReceiveProcessor::ProcessReplyAddressByte() {
   // reserved and not used
   // AAAA = 4 bits for address (module id 0 to 15)
 
+
   uint8_t broadcast = (_packetbuffer.address & B10000000) >> 7;
   // uint8_t bank=(_packetbuffer.address & B00110000) >> 4;
   // uint8_t lastAddress=_packetbuffer.address & 0x0F;
@@ -70,6 +97,9 @@ void PacketReceiveProcessor::ProcessReplyAddressByte() {
   // Only set if it was a reply from a broadcast message
   if (broadcast > 0) {
     if (numberOfModules[ReplyFromBank()] != ReplyLastAddress()) {
+
+      //SERIAL_DEBUG.println("Reset bank values");
+
       numberOfModules[ReplyFromBank()] = ReplyLastAddress();
 
       // if we have a different number of modules in this bank
@@ -84,6 +114,15 @@ void PacketReceiveProcessor::ProcessReplyAddressByte() {
   }
 }
 
+
+void PacketReceiveProcessor::ProcessReplyBadPacketCount() {
+  // Called when a decoded packet has arrived in buffer for command
+  ProcessReplyAddressByte();
+  for (size_t i = 0; i < maximum_cell_modules; i++) {
+    cmi[ReplyFromBank()][i].badPacketCount = _packetbuffer.moduledata[i];
+  }
+}
+
 void PacketReceiveProcessor::ProcessReplyTemperature() {
   // Called when a decoded packet has arrived in buffer for command 3
 
@@ -95,13 +134,29 @@ void PacketReceiveProcessor::ProcessReplyTemperature() {
   }
 }
 
+void PacketReceiveProcessor::ProcessReplyBalancePower() {
+  // Called when a decoded packet has arrived in _packetbuffer for command 1
+  ProcessReplyAddressByte();
+
+  uint8_t b = ReplyFromBank();
+
+  //SERIAL_DEBUG.print("Bank=");  SERIAL_DEBUG.println(b);
+
+  for (uint8_t i = 0; i < maximum_cell_modules; i++) {
+    cmi[b][i].PWMValue = _packetbuffer.moduledata[i];
+  }
+}
+
+
 void PacketReceiveProcessor::ProcessReplyVoltage() {
   // Called when a decoded packet has arrived in _packetbuffer for command 1
   ProcessReplyAddressByte();
 
   uint8_t b = ReplyFromBank();
 
-  for (size_t i = 0; i < maximum_cell_modules; i++) {
+  //SERIAL_DEBUG.print("Bank=");  SERIAL_DEBUG.println(b);
+
+  for (uint8_t i = 0; i < maximum_cell_modules; i++) {
     // 3 top bits remaining
     // X = In bypass
     // Y = Bypass over temperature
@@ -123,7 +178,8 @@ void PacketReceiveProcessor::ProcessReplyVoltage() {
 
 void PacketReceiveProcessor::ProcessReplySettings() {
   uint8_t b = ReplyFromBank();
-  uint8_t m = ReplyLastAddress();
+  //Need to use the raw version here
+  uint8_t m = ReplyLastAddressRaw();
 
   // TODO Validate b and m here to prevent array overflow
   cmi[b][m].settingsCached = true;
@@ -152,4 +208,6 @@ void PacketReceiveProcessor::ProcessReplySettings() {
   cmi[b][m].Internal_BCoefficient = _packetbuffer.moduledata[8];
   // uint16_t
   cmi[b][m].External_BCoefficient = _packetbuffer.moduledata[9];
+  // uint16_t
+  cmi[b][m].BoardVersionNumber = _packetbuffer.moduledata[10];
 }
